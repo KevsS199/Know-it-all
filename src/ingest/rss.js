@@ -10,8 +10,8 @@ const parser = new Parser({
 
 const SOURCES = [
   {
-    name: 'Y Combinator',
-    url: 'https://www.ycombinator.com/blog/rss',
+    name: 'Hacker News',
+    url: 'https://news.ycombinator.com/rss',
   },
   {
     name: 'MIT Technology Review',
