@@ -1,0 +1,51 @@
+name: Daily Brief Video
+
+on:
+  schedule:
+    - cron: '0 14 * * *'   # 8am Mexico City (CST, UTC-6)
+  workflow_dispatch:         # Manual trigger from Actions tab
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            ffmpeg \
+            libcairo2-dev \
+            libpango1.0-dev \
+            libjpeg-dev \
+            libgif-dev \
+            librsvg2-dev \
+            pkg-config
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Generate video
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+          OUTPUT_DIR: ./output
+        run: node src/index.js
+
+      - name: Upload video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-brief-${{ github.run_id }}
+          path: output/*.mp4
+          retention-days: 30

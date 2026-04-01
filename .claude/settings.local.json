@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(curl -s -L --max-time 10 -A \"Mozilla/5.0\" \"https://feeds.hbr.org/harvardbusiness\")",
+      "Bash(curl -s -L --max-time 10 -A \"Mozilla/5.0\" \"https://www.diamandis.com/feed\")",
+      "Bash(curl -s -L --max-time 10 -A \"Mozilla/5.0\" \"https://www.aidailybriefing.com/rss\")",
+      "Bash(curl -s -L --max-time 10 -A \"Mozilla/5.0\" \"https://www.ycombinator.com/blog/rss\")",
+      "Bash(curl -s -L --max-time 10 -A \"Mozilla/5.0\" \"https://feeds.hbr.org/harvardbusiness\" -o /dev/null -w \"%{http_code} %{url_effective}\")",
+      "Bash(curl -s -L --max-time 10 -A \"Mozilla/5.0\" \"https://www.technologyreview.com/feed/\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\kevin\\Documents\\GitHub\\Know-it-all\\src"
+    ]
+  }
+}
