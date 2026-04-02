@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/index.js",
     "dev": "node --env-file-if-exists=.env src/index.js",
+    "preview": "node --env-file-if-exists=.env src/smoke/preview.js",
+    "smoke:image": "node --env-file-if-exists=.env src/smoke/image-search.js",
     "smoke:rss": "node --env-file-if-exists=.env src/smoke/rss.js",
     "smoke:tts": "node --env-file-if-exists=.env src/smoke/tts.js"
   },

@@ -36,6 +36,23 @@ const MAX_SUMMARY_CHARS = 800;
 const WINDOW_HOURS = 48;
 const FETCH_TIMEOUT_MS = 12000;
 
+function extractImageUrl(item) {
+  const candidates = [
+    item.enclosure?.url,
+    item['media:content']?.url,
+    item['media:thumbnail']?.url,
+    item.thumbnail,
+  ].filter(Boolean);
+
+  const htmlSources = [item.contentEncoded, item.content, item.summary];
+  for (const html of htmlSources) {
+    const match = String(html || '').match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (match?.[1]) candidates.push(match[1]);
+  }
+
+  return candidates.find((value) => /^https?:\/\//i.test(value)) || null;
+}
+
 function extractText(item) {
   const raw = item.contentEncoded || item.content || item.summary || item.contentSnippet || '';
 
@@ -111,6 +128,7 @@ async function fetchSource(source) {
         source: source.name,
         title: (item.title || '').trim(),
         summary: extractText(item),
+        imageUrl: extractImageUrl(item),
         url: item.link || '',
         publishedAt: item.pubDate || item.isoDate || null,
       }))

@@ -6,7 +6,7 @@ const MODEL = 'claude-opus-4-5';
 const SYSTEM_PROMPT = `Eres el guionista de "Know-it-all", un noticiero diario de IA y negocios en formato Reels/TikTok vertical.
 
 REGLAS ABSOLUTAS:
-- Escribe TODO en español nativo. No traduzcas — piensa y redacta directamente en español.
+- Escribe TODO en español nativo. No traduzcas: piensa y redacta directamente en español.
 - Tono: amigo inteligente explicando las noticias, directo, sin jerga innecesaria.
 - Devuelve ÚNICAMENTE JSON válido. Sin markdown, sin comentarios, sin texto antes o después del JSON.
 
@@ -27,10 +27,11 @@ ESQUEMA JSON (devuelve exactamente esto, sin campos extra):
   "segments": [
     {
       "index": 1,
+      "article_index": 1,
       "source": "string",
-      "headline": "string — máximo 8 palabras",
-      "body": "string — ~50 palabras, tono conversacional",
-      "emoji": "string — un solo emoji representativo"
+      "headline": "string - máximo 8 palabras",
+      "body": "string - ~50 palabras, tono conversacional",
+      "emoji": "string - un solo emoji representativo"
     }
   ],
   "cta": "string"
@@ -39,23 +40,44 @@ ESQUEMA JSON (devuelve exactamente esto, sin campos extra):
 function buildUserPrompt(articles, date) {
   const lines = articles
     .map(
-      (a, i) =>
-        `[${i + 1}] FUENTE: ${a.source}\nTÍTULO: ${a.title}\nCONTENIDO: ${a.summary}`
+      (article, index) =>
+        `[${index + 1}] FUENTE: ${article.source}\nTÍTULO: ${article.title}\nCONTENIDO: ${article.summary}`
     )
     .join('\n\n---\n\n');
 
-  return `Fecha de hoy: ${date}\n\nArtículos disponibles:\n\n${lines}\n\nSelecciona las 3 mejores y genera el guión en JSON.`;
+  return `Fecha de hoy: ${date}\n\nArtículos disponibles:\n\n${lines}\n\nSelecciona las 3 mejores y genera el guión en JSON. Usa article_index para indicar exactamente qué artículo elegiste en cada segmento.`;
 }
 
 function validateScript(script) {
   if (!script.hook || typeof script.hook !== 'string') throw new Error('Missing or invalid hook');
-  if (!Array.isArray(script.segments) || script.segments.length !== 3)
+  if (!Array.isArray(script.segments) || script.segments.length !== 3) {
     throw new Error(`Expected 3 segments, got ${script.segments?.length}`);
-  for (const s of script.segments) {
-    if (!s.headline || !s.body || !s.emoji || !s.source)
-      throw new Error(`Segment ${s.index} is missing required fields`);
   }
+
+  for (const segment of script.segments) {
+    if (!Number.isInteger(segment.article_index)) {
+      throw new Error(`Segment ${segment.index} is missing a valid article_index`);
+    }
+    if (!segment.headline || !segment.body || !segment.emoji || !segment.source) {
+      throw new Error(`Segment ${segment.index} is missing required fields`);
+    }
+  }
+
   if (!script.cta || typeof script.cta !== 'string') throw new Error('Missing or invalid cta');
+}
+
+function attachSourceMetadata(script, articles) {
+  for (const segment of script.segments) {
+    const article = articles[segment.article_index - 1];
+    if (!article) {
+      throw new Error(`Segment ${segment.index} references invalid article_index ${segment.article_index}`);
+    }
+
+    segment.source = article.source;
+    segment.storyTitle = article.title;
+    segment.storyUrl = article.url || null;
+    segment.storyImageUrl = article.imageUrl || null;
+  }
 }
 
 export async function synthesize(articles) {
@@ -75,7 +97,6 @@ export async function synthesize(articles) {
 
   let script;
   try {
-    // Strip accidental markdown code fences if Claude adds them
     const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
     script = JSON.parse(cleaned);
   } catch (err) {
@@ -84,7 +105,8 @@ export async function synthesize(articles) {
   }
 
   validateScript(script);
-  script.date = date; // always use today's date
+  attachSourceMetadata(script, articles);
+  script.date = date;
 
   console.log(`[claude] Script generated: "${script.hook.slice(0, 60)}..."`);
   return script;

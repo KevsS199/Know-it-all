@@ -16,15 +16,19 @@ function getAudioDuration(audioPath) {
   });
 }
 
+function addVisualInput(command, visual) {
+  if (visual?.type === 'sequence') {
+    command.input(visual.pattern).inputOptions([`-framerate ${visual.fps}`, '-stream_loop -1']);
+    return;
+  }
+
+  command.input(visual).inputOptions(['-loop 1']);
+}
+
 function makeClip(visual, audioPath, outputPath, duration) {
   return new Promise((resolve, reject) => {
     const command = ffmpeg();
-
-    if (visual?.type === 'sequence') {
-      command.input(visual.pattern).inputOptions([`-framerate ${visual.fps}`, '-stream_loop -1']);
-    } else {
-      command.input(visual).inputOptions(['-loop 1']);
-    }
+    addVisualInput(command, visual);
 
     command
       .input(audioPath)
@@ -32,6 +36,30 @@ function makeClip(visual, audioPath, outputPath, duration) {
         '-c:v libx264',
         '-c:a aac',
         '-b:a 192k',
+        '-pix_fmt yuv420p',
+        '-r 30',
+        `-t ${duration}`,
+        '-shortest',
+        '-movflags +faststart',
+      ])
+      .output(outputPath)
+      .on('end', resolve)
+      .on('error', reject)
+      .run();
+  });
+}
+
+function makeSilentClip(visual, outputPath, duration) {
+  return new Promise((resolve, reject) => {
+    const command = ffmpeg();
+    addVisualInput(command, visual);
+
+    command
+      .input('anullsrc=channel_layout=stereo:sample_rate=44100')
+      .inputFormat('lavfi')
+      .outputOptions([
+        '-c:v libx264',
+        '-c:a aac',
         '-pix_fmt yuv420p',
         '-r 30',
         `-t ${duration}`,
@@ -99,4 +127,22 @@ export async function renderVideo(framePaths, audioPaths, outputPath, tmpDir) {
 
   await Promise.all(clipPaths.map((path) => unlink(path).catch(() => {})));
   console.log(`[ffmpeg] Done: ${outputPath}`);
+}
+
+export async function renderPreviewVideo(framePaths, outputPath, tmpDir, clipDuration = 2.4) {
+  const visuals = [framePaths.hook, framePaths.segments[0], framePaths.cta].filter(Boolean);
+  const clipPaths = [];
+
+  for (let i = 0; i < visuals.length; i++) {
+    const clipPath = join(tmpDir, `preview_clip_${i}.mp4`);
+    console.log(`[ffmpeg] Preview clip ${i + 1}/${visuals.length} - ${clipDuration.toFixed(1)}s`);
+    await makeSilentClip(visuals[i], clipPath, clipDuration);
+    clipPaths.push(clipPath);
+  }
+
+  console.log(`[ffmpeg] Concatenating preview clips -> ${outputPath}`);
+  await concatenateClips(clipPaths, outputPath);
+
+  await Promise.all(clipPaths.map((path) => unlink(path).catch(() => {})));
+  console.log(`[ffmpeg] Preview ready: ${outputPath}`);
 }

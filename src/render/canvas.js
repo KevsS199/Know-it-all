@@ -1,4 +1,4 @@
-import { createCanvas } from '@napi-rs/canvas';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -6,37 +6,71 @@ const W = 1080;
 const H = 1920;
 const LOOP_FRAMES = 12;
 const LOOP_FPS = 6;
+const AVATAR_DIR = join(process.cwd(), 'public', 'avatar');
 
 const C = {
-  bg: '#07110f',
-  bgSoft: '#0c1715',
-  panel: 'rgba(10, 20, 18, 0.88)',
-  panelStroke: 'rgba(0, 255, 163, 0.16)',
-  accent: '#00f5a0',
-  accentSoft: '#7dffd6',
-  text: '#f4f7f6',
-  muted: '#9cb2ac',
-  shadow: 'rgba(0, 0, 0, 0.24)',
-  avatarSkin: '#ffc38a',
-  avatarHair: '#dff7ff',
-  avatarSuit: '#0f2f29',
-  avatarShirt: '#f5fff9',
-  avatarTie: '#00f5a0',
+  bg: '#0b0614',
+  bgDeep: '#05030b',
+  panel: 'rgba(26, 14, 45, 0.9)',
+  bubble: 'rgba(20, 11, 38, 0.95)',
+  bubbleStroke: 'rgba(171, 107, 255, 0.24)',
+  accent: '#ab6bff',
+  accentSoft: '#d7bbff',
+  accentDim: '#7f49c9',
+  text: '#f6f2ff',
+  muted: '#b9add2',
+  shadow: 'rgba(0, 0, 0, 0.28)',
 };
+
+const AVATAR_FILES = {
+  normal: 'Web Mentor Robot Normal.png',
+  happy: 'Web Mentor Robot Happy.png',
+  hearts: 'Web Mentor Robot Hearts.png',
+  logo: 'Web Mentor Robot Logo.png',
+  share: 'Web Mentor Robot Share.png',
+};
+
+const avatarImagePromises = Object.fromEntries(
+  Object.entries(AVATAR_FILES).map(([key, file]) => [key, loadImage(join(AVATAR_DIR, file))])
+);
+const storyImageCache = new Map();
+
+async function getAvatarImage(name) {
+  return avatarImagePromises[name] || avatarImagePromises.normal;
+}
+
+async function getStoryImage(url) {
+  if (!url) return null;
+  if (!storyImageCache.has(url)) {
+    storyImageCache.set(
+      url,
+      (async () => {
+        try {
+          const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+          if (!response.ok) return null;
+          const bytes = await response.arrayBuffer();
+          return await loadImage(Buffer.from(bytes));
+        } catch {
+          return null;
+        }
+      })()
+    );
+  }
+
+  return storyImageCache.get(url);
+}
 
 function fillBackground(ctx, phase) {
   const bg = ctx.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, C.bg);
-  bg.addColorStop(1, '#050807');
+  bg.addColorStop(1, C.bgDeep);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  const pulseX = W * 0.22 + Math.sin(phase) * 24;
-  const pulseY = H * 0.74 + Math.cos(phase * 0.8) * 18;
-  drawGlow(ctx, pulseX, pulseY, 420, 'rgba(0, 245, 160, 0.12)');
-  drawGlow(ctx, W * 0.8, H * 0.2, 260, 'rgba(0, 160, 255, 0.08)');
+  drawGlow(ctx, W * 0.78 + Math.sin(phase) * 20, H * 0.24, 280, 'rgba(171, 107, 255, 0.16)');
+  drawGlow(ctx, W * 0.22, H * 0.84 + Math.cos(phase) * 24, 320, 'rgba(110, 78, 255, 0.14)');
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
   ctx.lineWidth = 1;
   for (let x = 0; x <= W; x += 80) {
     ctx.beginPath();
@@ -106,26 +140,15 @@ function drawLines(ctx, lines, x, y, lineHeight) {
   return lines.length * lineHeight;
 }
 
-function drawRoundedPanel(ctx, x, y, w, h, radius = 42) {
-  ctx.save();
-  ctx.shadowColor = C.shadow;
-  ctx.shadowBlur = 32;
-  ctx.shadowOffsetY = 12;
-  ctx.fillStyle = C.panel;
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, radius);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = C.panelStroke;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.restore();
+function getBlockHeight(lineCount, lineHeight) {
+  if (lineCount <= 0) return 0;
+  return (lineCount - 1) * lineHeight + lineHeight;
 }
 
 function drawPill(ctx, text, x, y, options = {}) {
   const {
     font = '600 24px sans-serif',
-    bg = 'rgba(0, 245, 160, 0.12)',
+    bg = 'rgba(171, 107, 255, 0.16)',
     fg = C.accentSoft,
     paddingX = 20,
     paddingY = 10,
@@ -152,112 +175,92 @@ function drawPill(ctx, text, x, y, options = {}) {
   return { width, height };
 }
 
-function drawAvatar(ctx, x, y, size, phase, options = {}) {
-  const bob = Math.sin(phase) * 10;
-  const blink = Math.cos(phase * 2) > 0.92;
-  const mouthOpen = Math.sin(phase * 3) > 0.15;
-  const wave = options.wave ? Math.sin(phase * 1.8) * 0.3 : 0;
-  const px = x;
-  const py = y + bob;
+function drawSpeechBubble(ctx, x, y, w, h, tail = 'left') {
+  ctx.save();
+  ctx.shadowColor = C.shadow;
+  ctx.shadowBlur = 36;
+  ctx.shadowOffsetY = 14;
+  ctx.fillStyle = C.bubble;
+  ctx.strokeStyle = C.bubbleStroke;
+  ctx.lineWidth = 2;
+
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 46);
+  if (tail === 'left') {
+    ctx.moveTo(x + 110, y + h);
+    ctx.lineTo(x + 72, y + h + 58);
+    ctx.lineTo(x + 168, y + h - 4);
+    ctx.closePath();
+  } else {
+    ctx.moveTo(x + w - 110, y + h);
+    ctx.lineTo(x + w - 72, y + h + 58);
+    ctx.lineTo(x + w - 168, y + h - 4);
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+async function drawStoryCard(ctx, segment, x, y, w, h) {
+  const image = await getStoryImage(segment.storyImageUrl);
 
   ctx.save();
-  ctx.translate(px, py);
-
-  drawGlow(ctx, size * 0.5, size * 0.58, size * 0.72, 'rgba(0, 245, 160, 0.1)');
-
-  ctx.fillStyle = 'rgba(0, 245, 160, 0.08)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  ctx.strokeStyle = 'rgba(171, 107, 255, 0.18)';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(size * 0.06, size * 0.08, size * 0.88, size * 0.92, 44);
+  ctx.roundRect(x, y, w, h, 28);
   ctx.fill();
-
-  ctx.fillStyle = C.avatarSuit;
-  ctx.beginPath();
-  ctx.roundRect(size * 0.2, size * 0.56, size * 0.6, size * 0.34, 36);
-  ctx.fill();
-
-  ctx.fillStyle = C.avatarShirt;
-  ctx.beginPath();
-  ctx.moveTo(size * 0.39, size * 0.57);
-  ctx.lineTo(size * 0.5, size * 0.72);
-  ctx.lineTo(size * 0.61, size * 0.57);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = C.avatarTie;
-  ctx.beginPath();
-  ctx.moveTo(size * 0.48, size * 0.62);
-  ctx.lineTo(size * 0.52, size * 0.62);
-  ctx.lineTo(size * 0.56, size * 0.82);
-  ctx.lineTo(size * 0.44, size * 0.82);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = C.avatarSkin;
-  ctx.beginPath();
-  ctx.arc(size * 0.5, size * 0.34, size * 0.19, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = C.avatarHair;
-  ctx.beginPath();
-  ctx.arc(size * 0.5, size * 0.28, size * 0.2, Math.PI, Math.PI * 2);
-  ctx.lineTo(size * 0.7, size * 0.34);
-  ctx.quadraticCurveTo(size * 0.59, size * 0.18, size * 0.35, size * 0.24);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = '#13211d';
-  ctx.lineCap = 'round';
-  ctx.lineWidth = size * 0.018;
-  const eyeY = size * 0.34;
-  const leftEyeX = size * 0.44;
-  const rightEyeX = size * 0.56;
-
-  if (blink) {
-    ctx.beginPath();
-    ctx.moveTo(leftEyeX - size * 0.03, eyeY);
-    ctx.lineTo(leftEyeX + size * 0.03, eyeY);
-    ctx.moveTo(rightEyeX - size * 0.03, eyeY);
-    ctx.lineTo(rightEyeX + size * 0.03, eyeY);
-    ctx.stroke();
-  } else {
-    ctx.fillStyle = '#10201b';
-    ctx.beginPath();
-    ctx.arc(leftEyeX, eyeY, size * 0.018, 0, Math.PI * 2);
-    ctx.arc(rightEyeX, eyeY, size * 0.018, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.strokeStyle = '#aa5d55';
-  ctx.lineWidth = size * 0.012;
-  ctx.beginPath();
-  if (mouthOpen) {
-    ctx.ellipse(size * 0.5, size * 0.43, size * 0.035, size * 0.024, 0, 0, Math.PI * 2);
-  } else {
-    ctx.moveTo(size * 0.46, size * 0.43);
-    ctx.quadraticCurveTo(size * 0.5, size * 0.45, size * 0.54, size * 0.43);
-  }
   ctx.stroke();
 
-  const armY = size * 0.62;
-  ctx.strokeStyle = C.avatarSuit;
-  ctx.lineWidth = size * 0.045;
-  ctx.beginPath();
-  ctx.moveTo(size * 0.24, armY);
-  ctx.lineTo(size * 0.12, size * 0.82);
-  ctx.moveTo(size * 0.76, armY);
-  if (options.wave) {
-    ctx.lineTo(size * (0.88 + wave * 0.08), size * 0.44);
-  } else {
-    ctx.lineTo(size * 0.88, size * 0.82);
-  }
-  ctx.stroke();
+  if (image) {
+    const scale = Math.max(w / image.width, h / image.height);
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+    const drawX = x + (w - drawWidth) / 2;
+    const drawY = y + (h - drawHeight) / 2;
 
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 28);
+    ctx.clip();
+    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = C.accentSoft;
+    ctx.font = '700 26px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('NEWS', x + w / 2, y + h / 2 - 8);
+    ctx.fillStyle = C.muted;
+    ctx.font = '500 20px sans-serif';
+    ctx.fillText(segment.source.toUpperCase(), x + w / 2, y + h / 2 + 28);
+  }
+
+  ctx.restore();
+}
+
+async function drawAvatar(ctx, x, y, size, phase, expression) {
+  const image = await getAvatarImage(expression);
+  const bob = Math.sin(phase) * 18 + Math.sin(phase * 2) * 6;
+  const scale = Math.min(size / image.width, size / image.height);
+  const pulse = 1 + Math.sin(phase * 1.4) * 0.03;
+  const drawWidth = image.width * scale * 1.56 * pulse;
+  const drawHeight = image.height * scale * 1.56 * pulse;
+  const offsetX = (size - drawWidth) / 2;
+  const offsetY = size - drawHeight;
+
+  ctx.save();
+  ctx.translate(x, y + bob);
+  ctx.rotate(Math.sin(phase * 0.7) * 0.022);
+  drawGlow(ctx, size * 0.56, size * 0.62, size * 0.92, 'rgba(171, 107, 255, 0.22)');
+  ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
   ctx.restore();
 }
 
 function drawProgress(ctx, activeIndex, total) {
   const width = 360;
-  const x = 620;
+  const x = W / 2 - width / 2;
   const y = 112;
   const gap = 18;
   const barWidth = (width - gap * (total - 1)) / total;
@@ -270,115 +273,157 @@ function drawProgress(ctx, activeIndex, total) {
   }
 }
 
-function drawHookScene(script, outputPath, frameIndex) {
+function getSegmentExpression(index) {
+  const expressions = ['normal', 'happy', 'hearts'];
+  return expressions[(index - 1) % expressions.length];
+}
+
+async function drawHookScene(script, outputPath, frameIndex) {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
   const phase = (frameIndex / LOOP_FRAMES) * Math.PI * 2;
+  const bubbleX = 300;
+  const bubbleY = 130;
+  const bubbleW = 650;
+  const titleX = 360;
+  const titleY = 228;
 
   fillBackground(ctx, phase);
-  drawAvatar(ctx, 74, 320, 390, phase);
-  drawRoundedPanel(ctx, 430, 240, 570, 840, 44);
+  drawProgress(ctx, 1, 3);
+  await drawAvatar(ctx, -170, 820, 900, phase, 'logo');
 
   ctx.fillStyle = C.accent;
-  ctx.font = '700 30px sans-serif';
+  ctx.font = '700 28px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('KNOW-IT-ALL DAILY BRIEF', 490, 324);
-
-  ctx.fillStyle = C.muted;
-  ctx.font = '500 24px sans-serif';
-  ctx.fillText(script.date, 490, 364);
-
-  ctx.fillStyle = C.accent;
-  ctx.fillRect(490, 392, 112, 4);
+  const headerY = titleY;
+  const dateY = headerY + 42;
 
   ctx.fillStyle = C.text;
   ctx.font = '700 74px sans-serif';
-  const hookLines = fitLines(ctx, script.hook, 450, 5);
-  drawLines(ctx, hookLines, 490, 510, 88);
+  const hookLines = fitLines(ctx, script.hook, 500, 5);
+  const hookBlockHeight = getBlockHeight(hookLines.length, 82);
+  const hookTextY = dateY + 82;
+  const footerY = hookTextY + hookBlockHeight + 60;
+  const bubbleH = Math.max(560, footerY - bubbleY + 86);
+
+  drawSpeechBubble(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 'left');
+
+  ctx.fillStyle = C.accent;
+  ctx.font = '700 28px sans-serif';
+  ctx.fillText('KNOW-IT-ALL DAILY BRIEF', titleX, headerY);
 
   ctx.fillStyle = C.muted;
-  ctx.font = '500 28px sans-serif';
-  ctx.fillText('Resumen rapido con tu avatar anfitrion.', 490, 960);
+  ctx.font = '500 24px sans-serif';
+  ctx.fillText(script.date, titleX, dateY);
+
+  ctx.fillStyle = C.text;
+  ctx.font = '700 74px sans-serif';
+  drawLines(ctx, hookLines, titleX, hookTextY, 82);
 
   ctx.fillStyle = C.accentSoft;
-  ctx.font = '600 24px sans-serif';
-  ctx.fillText('IA + negocios + contexto claro', 84, 768);
+  ctx.font = '600 26px sans-serif';
+  ctx.fillText('Noticias explicadas por tu robot anfitrión', titleX, footerY);
 
-  return writeFile(outputPath, canvas.toBuffer('image/png'));
+  await writeFile(outputPath, canvas.toBuffer('image/png'));
 }
 
-function drawSegmentScene(segment, total, outputPath, frameIndex) {
+async function drawSegmentScene(segment, total, outputPath, frameIndex) {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
   const phase = (frameIndex / LOOP_FRAMES) * Math.PI * 2;
+  const bubbleX = 300;
+  const bubbleY = 130;
+  const bubbleW = 650;
+  const contentX = 352;
+  const storyCardX = 820;
+  const storyCardY = 180;
+  const storyCardW = 260;
+  const storyCardH = 280;
 
   fillBackground(ctx, phase);
   drawProgress(ctx, segment.index, total);
-  drawAvatar(ctx, 60, 270, 350, phase);
-  drawRoundedPanel(ctx, 392, 208, 628, 1180, 44);
-
-  const pill = drawPill(ctx, segment.source.toUpperCase(), 438, 270);
+  await drawStoryCard(ctx, segment, storyCardX, storyCardY, storyCardW, storyCardH);
 
   ctx.fillStyle = C.muted;
   ctx.font = '600 22px sans-serif';
-  ctx.fillText(`Story ${segment.index} of ${total}`, 438 + pill.width + 24, 304);
-
-  ctx.fillStyle = C.text;
-  ctx.font = '700 58px sans-serif';
-  const headlineLines = fitLines(ctx, segment.headline, 530, 3);
-  const headlineBottom = 390 + drawLines(ctx, headlineLines, 438, 390, 72);
-
-  ctx.fillStyle = C.accent;
-  ctx.fillRect(438, headlineBottom + 12, 120, 4);
-
-  ctx.fillStyle = C.text;
-  ctx.font = '500 34px sans-serif';
-  const bodyLines = fitLines(ctx, segment.body, 520, 8);
-  drawLines(ctx, bodyLines, 438, headlineBottom + 84, 50);
-
-  ctx.fillStyle = C.accent;
-  ctx.font = '700 120px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(segment.emoji, 232, 950);
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = C.muted;
-  ctx.font = '500 24px sans-serif';
-  drawLines(
-    ctx,
-    ['Host reaction:', 'this one actually matters.'],
-    86,
-    1100,
-    34
-  );
-
-  return writeFile(outputPath, canvas.toBuffer('image/png'));
-}
-
-function drawCTAScene(script, outputPath, frameIndex) {
-  const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext('2d');
-  const phase = (frameIndex / LOOP_FRAMES) * Math.PI * 2;
-
-  fillBackground(ctx, phase);
-  drawRoundedPanel(ctx, 140, 220, 800, 1020, 48);
-  drawAvatar(ctx, 300, 300, 480, phase, { wave: true });
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = C.accent;
-  ctx.font = '700 30px sans-serif';
-  ctx.fillText('MANANA TE LO CUENTO EN 60 SEGUNDOS', W / 2, 910);
 
   ctx.fillStyle = C.text;
   ctx.font = '700 62px sans-serif';
-  const ctaLines = fitLines(ctx, script.cta, 620, 3);
-  drawLines(ctx, ctaLines, W / 2, 1010, 78);
+  const headlineLines = fitLines(ctx, segment.headline, 260, 5);
+  const headlineBlockHeight = getBlockHeight(headlineLines.length, 74);
+  ctx.font = '500 34px sans-serif';
+  const bodyLines = fitLines(ctx, segment.body, 520, 12);
+  const bodyBlockHeight = getBlockHeight(bodyLines.length, 48);
+  const pillY = 204;
+  const headlineY = 286;
+  const dividerY = headlineY + headlineBlockHeight + 10;
+  const bodyY = dividerY + 72;
+  const bubbleH = Math.max(620, bodyY + bodyBlockHeight - bubbleY + 96);
+
+  drawSpeechBubble(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 'left');
+
+  const pill = drawPill(ctx, segment.source.toUpperCase(), contentX, pillY);
+
+  ctx.fillStyle = C.muted;
+  ctx.font = '600 22px sans-serif';
+  ctx.fillText(`Historia ${segment.index} de ${total}`, contentX + pill.width + 22, pillY + 34);
+
+  ctx.fillStyle = C.accent;
+  ctx.fillRect(contentX, dividerY, 120, 4);
+
+  ctx.fillStyle = C.text;
+  ctx.font = '700 62px sans-serif';
+  drawLines(ctx, headlineLines, contentX, headlineY, 74);
+
+  ctx.fillStyle = C.text;
+  ctx.font = '500 34px sans-serif';
+  drawLines(ctx, bodyLines, contentX, bodyY, 48);
+
+  await drawAvatar(ctx, -220, 860, 980, phase, getSegmentExpression(segment.index));
+
+  await writeFile(outputPath, canvas.toBuffer('image/png'));
+}
+
+async function drawCTAScene(script, outputPath, frameIndex) {
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  const phase = (frameIndex / LOOP_FRAMES) * Math.PI * 2;
+  const bubbleX = 90;
+  const bubbleY = 160;
+  const bubbleW = 650;
+  const textX = 144;
+
+  fillBackground(ctx, phase);
+  await drawAvatar(ctx, 260, 760, 840, phase, 'share');
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = C.accent;
+  ctx.font = '700 30px sans-serif';
+
+  ctx.fillStyle = C.text;
+  ctx.font = '700 64px sans-serif';
+  const ctaLines = fitLines(ctx, script.cta, 520, 4);
+  const ctaBlockHeight = getBlockHeight(ctaLines.length, 76);
+  const headerY = 270;
+  const ctaY = 370;
+  const footerY = ctaY + ctaBlockHeight + 64;
+  const bubbleH = Math.max(500, footerY - bubbleY + 86);
+
+  drawSpeechBubble(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 'right');
+
+  ctx.fillStyle = C.accent;
+  ctx.font = '700 30px sans-serif';
+  ctx.fillText('SIGUE LA CUENTA', textX, headerY);
+
+  ctx.fillStyle = C.text;
+  ctx.font = '700 64px sans-serif';
+  drawLines(ctx, ctaLines, textX, ctaY, 76);
 
   ctx.fillStyle = C.muted;
   ctx.font = '500 28px sans-serif';
-  ctx.fillText('Sigue la cuenta para el siguiente brief.', W / 2, 1270);
+  ctx.fillText('Mañana hay otro brief con lo más importante.', textX, footerY);
 
-  return writeFile(outputPath, canvas.toBuffer('image/png'));
+  await writeFile(outputPath, canvas.toBuffer('image/png'));
 }
 
 async function renderLoop(renderer, basename, tmpDir) {

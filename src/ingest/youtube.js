@@ -36,6 +36,12 @@ async function getLatestVideo(channelId, apiKey) {
     videoId: item.id?.videoId,
     title: item.snippet?.title || '',
     description: (item.snippet?.description || '').slice(0, MAX_DESCRIPTION_CHARS),
+    imageUrl:
+      item.snippet?.thumbnails?.maxres?.url ||
+      item.snippet?.thumbnails?.high?.url ||
+      item.snippet?.thumbnails?.medium?.url ||
+      item.snippet?.thumbnails?.default?.url ||
+      null,
     publishedAt,
   };
 }
@@ -82,6 +88,7 @@ async function tryChannel(channel, apiKey) {
       source: channel.name,
       title: video.title,
       summary: content,
+      imageUrl: video.imageUrl,
       url: `https://www.youtube.com/watch?v=${video.videoId}`,
       publishedAt: video.publishedAt,
     };
