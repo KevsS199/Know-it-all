@@ -6,20 +6,26 @@ const W = 1080;
 const H = 1920;
 const LOOP_FRAMES = 12;
 const LOOP_FPS = 6;
+const GRID = 8;
+const CARD_X = 184;
+const CARD_Y = 152;
+const CARD_W = 688;
+const CARD_H = 792;
+const CARD_PAD_X = GRID * 7;
+const CARD_PAD_TOP = GRID * 7;
+const CONTENT_X = CARD_X + CARD_PAD_X;
+const CONTENT_W = CARD_W - CARD_PAD_X * 2;
 const AVATAR_DIR = join(process.cwd(), 'public', 'avatar');
 
 const C = {
   bg: '#0b0614',
   bgDeep: '#05030b',
-  panel: 'rgba(26, 14, 45, 0.9)',
   bubble: 'rgba(20, 11, 38, 0.95)',
   bubbleStroke: 'rgba(171, 107, 255, 0.24)',
   accent: '#ab6bff',
   accentSoft: '#d7bbff',
-  accentDim: '#7f49c9',
   text: '#f6f2ff',
   muted: '#b9add2',
-  shadow: 'rgba(0, 0, 0, 0.28)',
 };
 
 const AVATAR_FILES = {
@@ -56,7 +62,6 @@ async function getStoryImage(url) {
       })()
     );
   }
-
   return storyImageCache.get(url);
 }
 
@@ -84,6 +89,13 @@ function fillBackground(ctx, phase) {
     ctx.lineTo(W, y);
     ctx.stroke();
   }
+
+  const vignette = ctx.createRadialGradient(W / 2, H / 2, H * 0.18, W / 2, H / 2, H * 0.78);
+  vignette.addColorStop(0, 'rgba(5, 3, 11, 0)');
+  vignette.addColorStop(0.72, 'rgba(5, 3, 11, 0.16)');
+  vignette.addColorStop(1, 'rgba(5, 3, 11, 0.52)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, W, H);
 }
 
 function drawGlow(ctx, cx, cy, radius, color) {
@@ -137,26 +149,29 @@ function drawLines(ctx, lines, x, y, lineHeight) {
   for (let i = 0; i < lines.length; i++) {
     ctx.fillText(lines[i], x, y + i * lineHeight);
   }
-  return lines.length * lineHeight;
 }
 
-function getBlockHeight(lineCount, lineHeight) {
-  if (lineCount <= 0) return 0;
-  return (lineCount - 1) * lineHeight + lineHeight;
+function drawTrackedText(ctx, text, x, y, tracking = 0) {
+  let cursor = x;
+  for (const char of text) {
+    ctx.fillText(char, cursor, y);
+    cursor += ctx.measureText(char).width + tracking;
+  }
 }
 
 function drawPill(ctx, text, x, y, options = {}) {
   const {
-    font = '600 24px sans-serif',
-    bg = 'rgba(171, 107, 255, 0.16)',
-    fg = C.accentSoft,
-    paddingX = 20,
-    paddingY = 10,
+    font = '600 22px sans-serif',
+    bg = 'rgba(171, 107, 255, 0.1)',
+    fg = '#efe6ff',
+    stroke = 'rgba(215, 187, 255, 0.28)',
+    paddingX = 18,
+    paddingY = 8,
   } = options;
 
   ctx.save();
   ctx.font = font;
-  const fontSize = Number(font.match(/(\d+)px/)?.[1] || 24);
+  const fontSize = Number(font.match(/(\d+)px/)?.[1] || 22);
   const textWidth = ctx.measureText(text).width;
   const height = fontSize + paddingY * 2;
   const width = textWidth + paddingX * 2;
@@ -165,6 +180,9 @@ function drawPill(ctx, text, x, y, options = {}) {
   ctx.beginPath();
   ctx.roundRect(x, y, width, height, height / 2);
   ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
 
   ctx.fillStyle = fg;
   ctx.textAlign = 'left';
@@ -175,11 +193,11 @@ function drawPill(ctx, text, x, y, options = {}) {
   return { width, height };
 }
 
-function drawSpeechBubble(ctx, x, y, w, h, tail = 'left') {
+function drawSpeechBubble(ctx, x, y, w, h, tail = 'left', tailTarget = null) {
   ctx.save();
-  ctx.shadowColor = C.shadow;
-  ctx.shadowBlur = 36;
-  ctx.shadowOffsetY = 14;
+  ctx.shadowColor = 'rgba(115, 72, 201, 0.26)';
+  ctx.shadowBlur = 46;
+  ctx.shadowOffsetY = 18;
   ctx.fillStyle = C.bubble;
   ctx.strokeStyle = C.bubbleStroke;
   ctx.lineWidth = 2;
@@ -187,14 +205,18 @@ function drawSpeechBubble(ctx, x, y, w, h, tail = 'left') {
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 46);
   if (tail === 'left') {
-    ctx.moveTo(x + 110, y + h);
-    ctx.lineTo(x + 72, y + h + 58);
-    ctx.lineTo(x + 168, y + h - 4);
+    const targetX = tailTarget?.x ?? x + 94;
+    const targetY = tailTarget?.y ?? y + h + 68;
+    ctx.moveTo(x + 150, y + h - 8);
+    ctx.quadraticCurveTo(x + 128, y + h + 18, targetX, targetY);
+    ctx.quadraticCurveTo(x + 144, y + h + 34, x + 214, y + h + 10);
     ctx.closePath();
   } else {
-    ctx.moveTo(x + w - 110, y + h);
-    ctx.lineTo(x + w - 72, y + h + 58);
-    ctx.lineTo(x + w - 168, y + h - 4);
+    const targetX = tailTarget?.x ?? x + w - 94;
+    const targetY = tailTarget?.y ?? y + h + 68;
+    ctx.moveTo(x + w - 150, y + h - 8);
+    ctx.quadraticCurveTo(x + w - 128, y + h + 18, targetX, targetY);
+    ctx.quadraticCurveTo(x + w - 144, y + h + 34, x + w - 214, y + h + 10);
     ctx.closePath();
   }
   ctx.fill();
@@ -202,10 +224,14 @@ function drawSpeechBubble(ctx, x, y, w, h, tail = 'left') {
   ctx.restore();
 }
 
-async function drawStoryCard(ctx, segment, x, y, w, h) {
-  const image = await getStoryImage(segment.storyImageUrl);
+async function drawStoryImagePanel(ctx, imageUrl, x, y, w, h) {
+  const image = await getStoryImage(imageUrl);
+  if (!image) return false;
 
   ctx.save();
+  ctx.shadowColor = 'rgba(90, 54, 164, 0.2)';
+  ctx.shadowBlur = 28;
+  ctx.shadowOffsetY = 12;
   ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
   ctx.strokeStyle = 'rgba(171, 107, 255, 0.18)';
   ctx.lineWidth = 2;
@@ -214,30 +240,21 @@ async function drawStoryCard(ctx, segment, x, y, w, h) {
   ctx.fill();
   ctx.stroke();
 
-  if (image) {
-    const scale = Math.max(w / image.width, h / image.height);
-    const drawWidth = image.width * scale;
-    const drawHeight = image.height * scale;
-    const drawX = x + (w - drawWidth) / 2;
-    const drawY = y + (h - drawHeight) / 2;
+  const scale = Math.max(w / image.width, h / image.height);
+  const drawWidth = image.width * scale;
+  const drawHeight = image.height * scale;
+  const drawX = x + (w - drawWidth) / 2;
+  const drawY = y + (h - drawHeight) / 2;
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 28);
-    ctx.clip();
-    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-    ctx.restore();
-  } else {
-    ctx.fillStyle = C.accentSoft;
-    ctx.font = '700 26px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('NEWS', x + w / 2, y + h / 2 - 8);
-    ctx.fillStyle = C.muted;
-    ctx.font = '500 20px sans-serif';
-    ctx.fillText(segment.source.toUpperCase(), x + w / 2, y + h / 2 + 28);
-  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 28);
+  ctx.clip();
+  ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+  ctx.restore();
 
   ctx.restore();
+  return true;
 }
 
 async function drawAvatar(ctx, x, y, size, phase, expression) {
@@ -278,51 +295,53 @@ function getSegmentExpression(index) {
   return expressions[(index - 1) % expressions.length];
 }
 
+function formatDisplayDate(dateString) {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  }).format(date);
+}
+
 async function drawHookScene(script, outputPath, frameIndex) {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
   const phase = (frameIndex / LOOP_FRAMES) * Math.PI * 2;
-  const bubbleX = 300;
-  const bubbleY = 130;
-  const bubbleW = 650;
-  const titleX = 360;
-  const titleY = 228;
 
   fillBackground(ctx, phase);
   drawProgress(ctx, 1, 3);
-  await drawAvatar(ctx, -170, 820, 900, phase, 'logo');
+  drawGlow(ctx, 242, 1228, 320, 'rgba(171, 107, 255, 0.22)');
+  drawSpeechBubble(ctx, CARD_X, CARD_Y, CARD_W, CARD_H, 'left', { x: 208, y: CARD_Y + CARD_H + 124 });
+  await drawAvatar(ctx, -12, 720, 1060, phase, 'logo');
 
-  ctx.fillStyle = C.accent;
-  ctx.font = '700 28px sans-serif';
+  const headerY = CARD_Y + CARD_PAD_TOP;
+  const dateY = headerY + 44;
+  const hookY = dateY + 84;
+  const footerRuleY = CARD_Y + CARD_H - 118;
+  const footerTextY = CARD_Y + CARD_H - 80;
+
   ctx.textAlign = 'left';
-  const headerY = titleY;
-  const dateY = headerY + 42;
-
-  ctx.fillStyle = C.text;
-  ctx.font = '700 74px sans-serif';
-  const hookLines = fitLines(ctx, script.hook, 500, 5);
-  const hookBlockHeight = getBlockHeight(hookLines.length, 82);
-  const hookTextY = dateY + 82;
-  const footerY = hookTextY + hookBlockHeight + 60;
-  const bubbleH = Math.max(560, footerY - bubbleY + 86);
-
-  drawSpeechBubble(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 'left');
-
   ctx.fillStyle = C.accent;
-  ctx.font = '700 28px sans-serif';
-  ctx.fillText('KNOW-IT-ALL DAILY BRIEF', titleX, headerY);
+  ctx.font = '700 24px sans-serif';
+  drawTrackedText(ctx, 'KNOW-IT-ALL DAILY BRIEF', CONTENT_X, headerY, 3.4);
 
   ctx.fillStyle = C.muted;
-  ctx.font = '500 24px sans-serif';
-  ctx.fillText(script.date, titleX, dateY);
+  ctx.font = '500 22px sans-serif';
+  ctx.fillText(formatDisplayDate(script.date), CONTENT_X, dateY);
 
   ctx.fillStyle = C.text;
-  ctx.font = '700 74px sans-serif';
-  drawLines(ctx, hookLines, titleX, hookTextY, 82);
+  ctx.font = '700 42px sans-serif';
+  const hookLines = fitLines(ctx, script.hook, CONTENT_W - 24, 3);
+  drawLines(ctx, hookLines, CONTENT_X, hookY, 50);
+
+  ctx.fillStyle = 'rgba(171, 107, 255, 0.9)';
+  ctx.fillRect(CONTENT_X, footerRuleY, 96, 2);
 
   ctx.fillStyle = C.accentSoft;
-  ctx.font = '600 26px sans-serif';
-  ctx.fillText('Noticias explicadas por tu robot anfitrión', titleX, footerY);
+  ctx.font = '600 22px sans-serif';
+  ctx.fillText('Noticias explicadas por tu robot anfitrión', CONTENT_X, footerTextY);
 
   await writeFile(outputPath, canvas.toBuffer('image/png'));
 }
@@ -331,55 +350,63 @@ async function drawSegmentScene(segment, total, outputPath, frameIndex) {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
   const phase = (frameIndex / LOOP_FRAMES) * Math.PI * 2;
-  const bubbleX = 300;
-  const bubbleY = 130;
-  const bubbleW = 650;
-  const contentX = 352;
-  const storyCardX = 820;
-  const storyCardY = 180;
-  const storyCardW = 260;
-  const storyCardH = 280;
+  const imagePanelX = CONTENT_X;
+  const imagePanelY = CARD_Y + CARD_H - 248;
+  const imagePanelW = CONTENT_W;
+  const imagePanelH = 180;
+  const hasStoryImage = Boolean(await getStoryImage(segment.storyImageUrl));
 
   fillBackground(ctx, phase);
   drawProgress(ctx, segment.index, total);
-  await drawStoryCard(ctx, segment, storyCardX, storyCardY, storyCardW, storyCardH);
+  drawGlow(ctx, 278, 1292, 320, 'rgba(171, 107, 255, 0.24)');
+  drawSpeechBubble(ctx, CARD_X, CARD_Y, CARD_W, CARD_H, 'left', { x: 220, y: CARD_Y + CARD_H + 138 });
+
+  ctx.font = '700 42px sans-serif';
+  const headlineLines = fitLines(ctx, segment.headline, CONTENT_W - 24, 3);
+  const headlineBlockHeight = Math.max(50, headlineLines.length * 50);
+
+  ctx.font = '500 26px sans-serif';
+  const bodyLines = fitLines(ctx, segment.body, CONTENT_W - 16, hasStoryImage ? 5 : 7);
+
+  const pillY = CARD_Y + CARD_PAD_TOP;
+  const metaY = pillY + 30;
+  const headlineY = pillY + 96;
+  const dividerY = headlineY + headlineBlockHeight + 24;
+  const bodyY = dividerY + 44;
+  const bodyBottomY = bodyY + (bodyLines.length - 1) * 38;
+  const minImageY = bodyBottomY + 48;
+  const resolvedImageY = Math.max(imagePanelY, minImageY);
+  const canFitImage = hasStoryImage && resolvedImageY + imagePanelH <= CARD_Y + CARD_H - 40;
+
+  const pill = drawPill(ctx, segment.source, CONTENT_X, pillY);
 
   ctx.fillStyle = C.muted;
-  ctx.font = '600 22px sans-serif';
+  ctx.font = '600 18px sans-serif';
+  ctx.fillText(`Historia ${segment.index} de ${total}`, CONTENT_X + pill.width + 20, metaY);
 
   ctx.fillStyle = C.text;
-  ctx.font = '700 62px sans-serif';
-  const headlineLines = fitLines(ctx, segment.headline, 260, 5);
-  const headlineBlockHeight = getBlockHeight(headlineLines.length, 74);
-  ctx.font = '500 34px sans-serif';
-  const bodyLines = fitLines(ctx, segment.body, 520, 12);
-  const bodyBlockHeight = getBlockHeight(bodyLines.length, 48);
-  const pillY = 204;
-  const headlineY = 286;
-  const dividerY = headlineY + headlineBlockHeight + 10;
-  const bodyY = dividerY + 72;
-  const bubbleH = Math.max(620, bodyY + bodyBlockHeight - bubbleY + 96);
+  ctx.font = '700 42px sans-serif';
+  drawLines(ctx, headlineLines, CONTENT_X, headlineY, 50);
 
-  drawSpeechBubble(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 'left');
+  ctx.fillStyle = 'rgba(171, 107, 255, 0.9)';
+  ctx.fillRect(CONTENT_X, dividerY, 88, 2);
 
-  const pill = drawPill(ctx, segment.source.toUpperCase(), contentX, pillY);
+  ctx.fillStyle = '#e7def6';
+  ctx.font = '500 26px sans-serif';
+  drawLines(ctx, bodyLines, CONTENT_X, bodyY, 38);
 
-  ctx.fillStyle = C.muted;
-  ctx.font = '600 22px sans-serif';
-  ctx.fillText(`Historia ${segment.index} de ${total}`, contentX + pill.width + 22, pillY + 34);
+  if (canFitImage) {
+    await drawStoryImagePanel(ctx, segment.storyImageUrl, imagePanelX, resolvedImageY, imagePanelW, imagePanelH);
+  } else {
+    // Fallback when no image exists or long copy would crush it: keep the footer intentional.
+    ctx.fillStyle = 'rgba(171, 107, 255, 0.14)';
+    ctx.fillRect(CONTENT_X, CARD_Y + CARD_H - 120, CONTENT_W, 1);
+    ctx.fillStyle = C.muted;
+    ctx.font = '500 20px sans-serif';
+    ctx.fillText(segment.source, CONTENT_X, CARD_Y + CARD_H - 84);
+  }
 
-  ctx.fillStyle = C.accent;
-  ctx.fillRect(contentX, dividerY, 120, 4);
-
-  ctx.fillStyle = C.text;
-  ctx.font = '700 62px sans-serif';
-  drawLines(ctx, headlineLines, contentX, headlineY, 74);
-
-  ctx.fillStyle = C.text;
-  ctx.font = '500 34px sans-serif';
-  drawLines(ctx, bodyLines, contentX, bodyY, 48);
-
-  await drawAvatar(ctx, -220, 860, 980, phase, getSegmentExpression(segment.index));
+  await drawAvatar(ctx, 28, CARD_Y + CARD_H - 304, 1380, phase, getSegmentExpression(segment.index));
 
   await writeFile(outputPath, canvas.toBuffer('image/png'));
 }
@@ -388,40 +415,33 @@ async function drawCTAScene(script, outputPath, frameIndex) {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
   const phase = (frameIndex / LOOP_FRAMES) * Math.PI * 2;
-  const bubbleX = 90;
-  const bubbleY = 160;
-  const bubbleW = 650;
-  const textX = 144;
 
   fillBackground(ctx, phase);
-  await drawAvatar(ctx, 260, 760, 840, phase, 'share');
+  drawProgress(ctx, 3, 3);
+  drawGlow(ctx, 788, 1270, 320, 'rgba(171, 107, 255, 0.24)');
+  drawSpeechBubble(ctx, CARD_X, CARD_Y, CARD_W, CARD_H, 'right', { x: 772, y: CARD_Y + CARD_H + 134 });
+  await drawAvatar(ctx, 300, CARD_Y + CARD_H - 312, 1180, phase, 'share');
+
+  const labelY = CARD_Y + CARD_PAD_TOP;
+  const ctaY = labelY + 104;
+  const footerY = CARD_Y + CARD_H - 92;
 
   ctx.textAlign = 'left';
   ctx.fillStyle = C.accent;
-  ctx.font = '700 30px sans-serif';
+  ctx.font = '700 24px sans-serif';
+  drawTrackedText(ctx, 'SIGUE LA CUENTA', CONTENT_X, labelY, 3.4);
 
   ctx.fillStyle = C.text;
-  ctx.font = '700 64px sans-serif';
-  const ctaLines = fitLines(ctx, script.cta, 520, 4);
-  const ctaBlockHeight = getBlockHeight(ctaLines.length, 76);
-  const headerY = 270;
-  const ctaY = 370;
-  const footerY = ctaY + ctaBlockHeight + 64;
-  const bubbleH = Math.max(500, footerY - bubbleY + 86);
+  ctx.font = '700 42px sans-serif';
+  const ctaLines = fitLines(ctx, script.cta, CONTENT_W - 24, 3);
+  drawLines(ctx, ctaLines, CONTENT_X, ctaY, 50);
 
-  drawSpeechBubble(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 'right');
-
-  ctx.fillStyle = C.accent;
-  ctx.font = '700 30px sans-serif';
-  ctx.fillText('SIGUE LA CUENTA', textX, headerY);
-
-  ctx.fillStyle = C.text;
-  ctx.font = '700 64px sans-serif';
-  drawLines(ctx, ctaLines, textX, ctaY, 76);
+  ctx.fillStyle = 'rgba(171, 107, 255, 0.9)';
+  ctx.fillRect(CONTENT_X, footerY - 34, 88, 2);
 
   ctx.fillStyle = C.muted;
-  ctx.font = '500 28px sans-serif';
-  ctx.fillText('Mañana hay otro brief con lo más importante.', textX, footerY);
+  ctx.font = '500 24px sans-serif';
+  ctx.fillText('Mañana hay otro brief con lo más importante.', CONTENT_X, footerY);
 
   await writeFile(outputPath, canvas.toBuffer('image/png'));
 }
