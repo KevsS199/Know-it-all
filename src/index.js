@@ -5,6 +5,7 @@ import { ingestRSS } from './ingest/rss.js';
 import { ingestYouTube } from './ingest/youtube.js';
 import { cleanAndDeduplicate } from './parse/clean.js';
 import { synthesize } from './synthesize/claude.js';
+import { writePostDescription } from './output/description.js';
 import { generateAudio } from './render/tts.js';
 import { generateFrames } from './render/canvas.js';
 import { renderVideo } from './render/ffmpeg.js';
@@ -13,6 +14,7 @@ const OUTPUT_DIR = process.env.OUTPUT_DIR || './output';
 const date = new Date().toISOString().split('T')[0];
 const tmpDir = join(OUTPUT_DIR, `.tmp_${date}`);
 const outputPath = join(OUTPUT_DIR, `${date}.mp4`);
+const descriptionPath = join(OUTPUT_DIR, `${date}.txt`);
 
 function log(stage, msg) {
   console.log(`\n${'─'.repeat(50)}`);
@@ -43,6 +45,9 @@ async function run() {
     log('SYNTHESIZE', 'Generating Spanish script via Claude...');
     const script = await synthesize(articles);
     console.log(`Hook: "${script.hook}"`);
+    const description = await writePostDescription(script, descriptionPath);
+    console.log(`[description] Saved: ${descriptionPath}`);
+    console.log(`[description] Preview: "${description.split('\n')[0]}"`);
 
     // ── Stage 4: TTS ───────────────────────────────────
     log('TTS', 'Generating audio with Google TTS...');

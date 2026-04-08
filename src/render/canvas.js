@@ -10,7 +10,7 @@ const GRID = 8;
 const CARD_X = 184;
 const CARD_Y = 152;
 const CARD_W = 688;
-const CARD_H = 792;
+const CARD_H = 904;
 const CARD_PAD_X = GRID * 7;
 const CARD_PAD_TOP = GRID * 7;
 const CONTENT_X = CARD_X + CARD_PAD_X;
@@ -324,23 +324,23 @@ async function drawHookScene(script, outputPath, frameIndex) {
 
   ctx.textAlign = 'left';
   ctx.fillStyle = C.accent;
-  ctx.font = '700 24px sans-serif';
+  ctx.font = '700 26px sans-serif';
   drawTrackedText(ctx, 'KNOW-IT-ALL DAILY BRIEF', CONTENT_X, headerY, 3.4);
 
   ctx.fillStyle = C.muted;
-  ctx.font = '500 22px sans-serif';
+  ctx.font = '500 24px sans-serif';
   ctx.fillText(formatDisplayDate(script.date), CONTENT_X, dateY);
 
   ctx.fillStyle = C.text;
-  ctx.font = '700 42px sans-serif';
+  ctx.font = '700 46px sans-serif';
   const hookLines = fitLines(ctx, script.hook, CONTENT_W - 24, 3);
-  drawLines(ctx, hookLines, CONTENT_X, hookY, 50);
+  drawLines(ctx, hookLines, CONTENT_X, hookY, 54);
 
   ctx.fillStyle = 'rgba(171, 107, 255, 0.9)';
   ctx.fillRect(CONTENT_X, footerRuleY, 96, 2);
 
   ctx.fillStyle = C.accentSoft;
-  ctx.font = '600 22px sans-serif';
+  ctx.font = '600 24px sans-serif';
   ctx.fillText('Noticias explicadas por tu robot anfitrión', CONTENT_X, footerTextY);
 
   await writeFile(outputPath, canvas.toBuffer('image/png'));
@@ -351,9 +351,9 @@ async function drawSegmentScene(segment, total, outputPath, frameIndex) {
   const ctx = canvas.getContext('2d');
   const phase = (frameIndex / LOOP_FRAMES) * Math.PI * 2;
   const imagePanelX = CONTENT_X;
-  const imagePanelY = CARD_Y + CARD_H - 248;
+  const imagePanelY = CARD_Y + CARD_H - 284;
   const imagePanelW = CONTENT_W;
-  const imagePanelH = 180;
+  const imagePanelH = 204;
   const hasStoryImage = Boolean(await getStoryImage(segment.storyImageUrl));
 
   fillBackground(ctx, phase);
@@ -361,11 +361,11 @@ async function drawSegmentScene(segment, total, outputPath, frameIndex) {
   drawGlow(ctx, 278, 1292, 320, 'rgba(171, 107, 255, 0.24)');
   drawSpeechBubble(ctx, CARD_X, CARD_Y, CARD_W, CARD_H, 'left', { x: 220, y: CARD_Y + CARD_H + 138 });
 
-  ctx.font = '700 42px sans-serif';
+  ctx.font = '700 34px sans-serif';
   const headlineLines = fitLines(ctx, segment.headline, CONTENT_W - 24, 3);
-  const headlineBlockHeight = Math.max(50, headlineLines.length * 50);
+  const headlineBlockHeight = Math.max(46, headlineLines.length * 46);
 
-  ctx.font = '500 26px sans-serif';
+  ctx.font = '500 34px sans-serif';
   const bodyLines = fitLines(ctx, segment.body, CONTENT_W - 16, hasStoryImage ? 5 : 7);
 
   const pillY = CARD_Y + CARD_PAD_TOP;
@@ -373,27 +373,27 @@ async function drawSegmentScene(segment, total, outputPath, frameIndex) {
   const headlineY = pillY + 96;
   const dividerY = headlineY + headlineBlockHeight + 24;
   const bodyY = dividerY + 44;
-  const bodyBottomY = bodyY + (bodyLines.length - 1) * 38;
-  const minImageY = bodyBottomY + 48;
+  const bodyBottomY = bodyY + (bodyLines.length - 1) * 48;
+  const minImageY = bodyBottomY + 56;
   const resolvedImageY = Math.max(imagePanelY, minImageY);
   const canFitImage = hasStoryImage && resolvedImageY + imagePanelH <= CARD_Y + CARD_H - 40;
 
   const pill = drawPill(ctx, segment.source, CONTENT_X, pillY);
 
   ctx.fillStyle = C.muted;
-  ctx.font = '600 18px sans-serif';
+  ctx.font = '600 20px sans-serif';
   ctx.fillText(`Historia ${segment.index} de ${total}`, CONTENT_X + pill.width + 20, metaY);
 
   ctx.fillStyle = C.text;
-  ctx.font = '700 42px sans-serif';
-  drawLines(ctx, headlineLines, CONTENT_X, headlineY, 50);
+  ctx.font = '700 34px sans-serif';
+  drawLines(ctx, headlineLines, CONTENT_X, headlineY, 46);
 
   ctx.fillStyle = 'rgba(171, 107, 255, 0.9)';
   ctx.fillRect(CONTENT_X, dividerY, 88, 2);
 
   ctx.fillStyle = '#e7def6';
-  ctx.font = '500 26px sans-serif';
-  drawLines(ctx, bodyLines, CONTENT_X, bodyY, 38);
+  ctx.font = '500 34px sans-serif';
+  drawLines(ctx, bodyLines, CONTENT_X, bodyY, 48);
 
   if (canFitImage) {
     await drawStoryImagePanel(ctx, segment.storyImageUrl, imagePanelX, resolvedImageY, imagePanelW, imagePanelH);
@@ -428,19 +428,19 @@ async function drawCTAScene(script, outputPath, frameIndex) {
 
   ctx.textAlign = 'left';
   ctx.fillStyle = C.accent;
-  ctx.font = '700 24px sans-serif';
+  ctx.font = '700 26px sans-serif';
   drawTrackedText(ctx, 'SIGUE LA CUENTA', CONTENT_X, labelY, 3.4);
 
   ctx.fillStyle = C.text;
-  ctx.font = '700 42px sans-serif';
+  ctx.font = '700 46px sans-serif';
   const ctaLines = fitLines(ctx, script.cta, CONTENT_W - 24, 3);
-  drawLines(ctx, ctaLines, CONTENT_X, ctaY, 50);
+  drawLines(ctx, ctaLines, CONTENT_X, ctaY, 54);
 
   ctx.fillStyle = 'rgba(171, 107, 255, 0.9)';
   ctx.fillRect(CONTENT_X, footerY - 34, 88, 2);
 
   ctx.fillStyle = C.muted;
-  ctx.font = '500 24px sans-serif';
+  ctx.font = '500 26px sans-serif';
   ctx.fillText('Mañana hay otro brief con lo más importante.', CONTENT_X, footerY);
 
   await writeFile(outputPath, canvas.toBuffer('image/png'));
