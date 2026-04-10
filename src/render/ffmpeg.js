@@ -129,7 +129,7 @@ export async function renderVideo(framePaths, audioPaths, outputPath, tmpDir) {
   console.log(`[ffmpeg] Done: ${outputPath}`);
 }
 
-export async function renderPreviewVideo(framePaths, outputPath, tmpDir, clipDuration = 2.4) {
+export async function renderPreviewVideo(framePaths, outputPath, tmpDir, clipDuration = 4.0) {
   const visuals = [framePaths.hook, framePaths.segments[0], framePaths.cta].filter(Boolean);
   const clipPaths = [];
 

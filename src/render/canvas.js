@@ -4,8 +4,8 @@ import { join } from 'path';
 
 const W = 1080;
 const H = 1920;
-const LOOP_FRAMES = 12;
-const LOOP_FPS = 6;
+const LOOP_FRAMES = 48;
+const LOOP_FPS = 24;
 const GRID = 8;
 const CARD_X = 184;
 const CARD_Y = 152;
